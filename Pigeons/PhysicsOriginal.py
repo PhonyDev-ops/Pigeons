@@ -20,9 +20,6 @@ FPS = 60
 # Physics constants
 GRAVITY = 9.8
 
-# Load sprites
-boy_img = pygame.image.load("boy.png")
-boy_img = pygame.transform.scale(boy_img, (100, 100))
 
 # Load birb animation frames (resize to match bird_img size)
 birb_frames = [
