@@ -7,4 +7,4 @@ This was made in haste, and the product of procrastination by Physics Group cons
 1. Chan
 2. Hills
 3. Ren 
-4. The one who shall not be named
+4. The person who shall not be named
