@@ -15,6 +15,7 @@ explode_sound = pygame.mixer.Sound('music/explode1.mp3')
 throw_sound = pygame.mixer.Sound('music/throw1.wav')
 select_sound = pygame.mixer.Sound('music/select1.wav')
 high_score_sound = pygame.mixer.Sound('music/highscore.wav')
+powerup_sound = pygame.mixer.Sound('music/powerup.wav')
 
 WIDTH, HEIGHT = 1280, 720
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -47,6 +48,21 @@ birds = []
 score = 0
 stone_count = 20
 stone_img = pygame.transform.scale(pygame.image.load('assets/stone.png').convert_alpha(), (24, 24))
+
+# Add power-up related constants
+POWERUP_DURATION = 5  # seconds
+POWERUP_TYPES = {
+    'red': {'name': '2x Points', 'color': (255, 0, 0), 'image': 'powerup_2x.png'},
+    'blue': {'name': 'Big Stones', 'color': (0, 0, 255), 'image': 'powerup_bigstones.png'},
+    'green': {'name': 'Extra Stones', 'color': (0, 255, 0), 'image': 'powerup_extrastones.png'},
+    'yellow': {'name': 'Slow Motion', 'color': (255, 255, 0), 'image': 'powerup_slow.png'}
+}
+
+# Load powerup images
+powerup_images = {
+    type_name: pygame.transform.scale(pygame.image.load(f'assets/{info["image"]}').convert_alpha(), (80, 80))
+    for type_name, info in POWERUP_TYPES.items()
+}
 
 def load_leaderboard():
     try:
@@ -111,24 +127,50 @@ def get_name_input(screen, font):
                     name += event.unicode
     return name
 
+class PowerUp:
+    def __init__(self, type_name):
+        self.type = type_name
+        self.start_time = time.time()
+        self.active = True
+    
+    def is_expired(self):
+        return time.time() - self.start_time > POWERUP_DURATION
+
 class Bird:
     def __init__(self):
         self.x = WIDTH
         self.y = random.randint(100, 300)
-        self.speed = random.uniform(2, 5)
+        self.original_speed = random.uniform(2, 5)
+        self.speed = self.original_speed
         self.radius = 20
         self.frame_index = 0
         self.last_anim_time = time.time()
-        self.image = birb_frames[self.frame_index]
-        self.rect = self.image.get_rect(topleft=(self.x, self.y))
+        # Randomly assign power-up type to some birds
+        self.powerup_type = random.choice(list(POWERUP_TYPES.keys())) if random.random() < 0.2 else None
+        
+        if self.powerup_type:
+            # Use the powerup image
+            self.image = powerup_images[self.powerup_type]
+            self.frames = [self.image]  # Single frame for power-up birds
+            self.rect = self.image.get_rect(topleft=(self.x, self.y))
+        else:
+            # Regular bird animation
+            self.frames = birb_frames
+            self.image = self.frames[self.frame_index]
+            self.rect = self.image.get_rect(topleft=(self.x, self.y))
+
     def move(self):
         self.x -= self.speed
         self.rect.x = int(self.x)
-        now = time.time()
-        if now - self.last_anim_time > 0.08:
-            self.frame_index = (self.frame_index + 1) % len(birb_frames)
-            self.image = birb_frames[self.frame_index]
-            self.last_anim_time = now
+        
+        # Only animate if it's a regular bird
+        if not self.powerup_type:
+            now = time.time()
+            if now - self.last_anim_time > 0.08:
+                self.frame_index = (self.frame_index + 1) % len(self.frames)
+                self.image = self.frames[self.frame_index]
+                self.last_anim_time = now
+
     def draw(self):
         screen.blit(self.image, self.rect)
 
@@ -152,9 +194,23 @@ class Stone:
         return self.x > WIDTH or self.y > HEIGHT or self.y < 0
 
 def check_collision(stone, bird):
-    dx = stone.x - (bird.x + 25)
-    dy = stone.y - (bird.y + 20)
-    return math.hypot(dx, dy) < 28
+    # Get the center points of both objects
+    stone_center = (stone.x, stone.y)
+    if bird.powerup_type:
+        # For powerups, use the center of the 80x80 image
+        bird_center = (bird.x + 40, bird.y + 40)
+        collision_radius = 40  # Half of the powerup image size
+    else:
+        # For regular birds, use the original collision radius
+        bird_center = (bird.x + 25, bird.y + 20)
+        collision_radius = 28
+    
+    # Calculate distance between centers
+    dx = stone_center[0] - bird_center[0]
+    dy = stone_center[1] - bird_center[1]
+    distance = math.hypot(dx, dy)
+    
+    return distance < collision_radius
 
 class LeaderboardScreen:
     def __init__(self, screen, width, height):
@@ -270,7 +326,7 @@ class Menu:
                             exit()
 
 def reset_game_variables():
-    global angle, velocity, stones, birds, score, stone_count, zombieboy_frame_index, zombieboy_animating, zombieboy_anim_timer, high_score_achieved
+    global angle, velocity, stones, birds, score, stone_count, zombieboy_frame_index, zombieboy_animating, zombieboy_anim_timer, high_score_achieved, active_powerups
     angle = 45
     velocity = 50
     stones = []
@@ -280,14 +336,16 @@ def reset_game_variables():
     zombieboy_frame_index = 0
     zombieboy_animating = False
     zombieboy_anim_timer = 0
-    high_score_achieved = False  # Reset the high score achievement flag
+    high_score_achieved = False
+    active_powerups = []  # Reset active power-ups
 
 menu = Menu(screen, SKY, WIDTH, HEIGHT, select_sound)
 menu_result = menu.run()
 reset_game_variables()
 running = menu_result == 'start'
 bird_spawn_timer = 0
-high_score_achieved = False  # Initialize the high score achievement flag
+high_score_achieved = False
+active_powerups = []  # Initialize active power-ups list
 
 while running:
     screen.blit(SKY, (0, 0))
@@ -330,13 +388,25 @@ while running:
         for bird in birds[:]:
             if check_collision(stone, bird):
                 explode_sound.play()
+                # Check for power-up activation
+                if bird.powerup_type:
+                    powerup_sound.play()
+                    active_powerups.append(PowerUp(bird.powerup_type))
                 birds.remove(bird)
                 stones.remove(stone)
-                score += 100
-                # Check if this score exceeds the current highest score and sound hasn't played yet
+                # Apply power-up effects
+                points = 100
+                for powerup in active_powerups:
+                    if powerup.type == 'red':  # 2x Points
+                        points *= 2
+                score += points
                 if score > get_highest_score() and not high_score_achieved:
                     high_score_sound.play()
-                    high_score_achieved = True  # Mark that we've played the sound
+                    high_score_achieved = True
+                # Apply other power-up effects
+                for powerup in active_powerups:
+                    if powerup.type == 'green':  # Extra Stones
+                        stone_count += 1
                 stone_count += 1
                 break
     if zombieboy_animating:
@@ -421,6 +491,31 @@ while running:
         running = menu_result == 'start'
         continue
 
+    # Update active power-ups
+    active_powerups = [p for p in active_powerups if not p.is_expired()]
+    
+    # Apply power-up effects to stone size
+    stone_scale = 1.0
+    for powerup in active_powerups:
+        if powerup.type == 'blue':  # Big Stones
+            stone_scale = 2.0
+            break
+
+    # Apply power-up effects to game speed
+    game_speed = 1.0
+    for powerup in active_powerups:
+        if powerup.type == 'yellow':  # Slow Motion
+            game_speed = 0.5
+            break
+
+    # Update stone size based on power-up
+    stone_img = pygame.transform.scale(pygame.image.load('assets/stone.png').convert_alpha(), 
+                                    (int(24 * stone_scale), int(24 * stone_scale)))
+
+    # Instead, apply speed to bird movement
+    for bird in birds:
+        bird.speed = bird.original_speed * game_speed
+
     # Update the info display to get the current highest score
     angle_text = f"Angle: {angle}°  Velocity: {velocity}  Score: "
     score_text = f"{score}"
@@ -444,5 +539,15 @@ while running:
     screen.blit(angle_info, (10, 10))
     screen.blit(score_info, (10 + angle_info.get_width(), 10))
     screen.blit(high_score_info, (10 + angle_info.get_width() + score_info.get_width(), 10))
+
+    # Draw active power-ups
+    powerup_y = 50
+    for powerup in active_powerups:
+        remaining_time = POWERUP_DURATION - (time.time() - powerup.start_time)
+        powerup_text = f"{POWERUP_TYPES[powerup.type]['name']}: {remaining_time:.1f}s"
+        powerup_surface = font.render(powerup_text, True, POWERUP_TYPES[powerup.type]['color'])
+        screen.blit(powerup_surface, (10, powerup_y))
+        powerup_y += 30
+
     pygame.display.flip()
 pygame.quit()
