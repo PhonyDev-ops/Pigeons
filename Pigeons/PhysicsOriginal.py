@@ -424,25 +424,26 @@ while running:
     # Update the info display to get the current highest score
     angle_text = f"Angle: {angle}°  Velocity: {velocity}  Score: "
     score_text = f"{score}"
-    high_score_text = f"  Stones: {stone_count}  High Score: {get_highest_score()}"
-    
+    high_score_text = f"High Score: {get_highest_score()}  Stones: {stone_count}"
+
     # Render each part with its own color
     angle_shadow = font.render(angle_text, True, (0, 0, 0))
     score_shadow = font.render(score_text, True, (0, 0, 0))
     high_score_shadow = font.render(high_score_text, True, (0, 0, 0))
-    
+
     angle_info = font.render(angle_text, True, (255, 255, 255))
     score_info = font.render(score_text, True, (0, 255, 0))  # Green color
     high_score_info = font.render(high_score_text, True, (255, 255, 0))  # Yellow color
-    
-    # Draw shadows
+
+    # Draw shadows (first line)
     screen.blit(angle_shadow, (14, 14))
     screen.blit(score_shadow, (14 + angle_shadow.get_width(), 14))
-    screen.blit(high_score_shadow, (14 + angle_shadow.get_width() + score_shadow.get_width(), 14))
-    
-    # Draw colored text
+    # Draw colored text (first line)
     screen.blit(angle_info, (10, 10))
     screen.blit(score_info, (10 + angle_info.get_width(), 10))
-    screen.blit(high_score_info, (10 + angle_info.get_width() + score_info.get_width(), 10))
+
+    # Draw shadow and colored text for high score (second line)
+    screen.blit(high_score_shadow, (14, 14 + angle_shadow.get_height()))
+    screen.blit(high_score_info, (10, 10 + angle_info.get_height()))
     pygame.display.flip()
 pygame.quit()
