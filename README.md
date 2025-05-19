@@ -8,14 +8,14 @@ This was made in haste, and the product of procrastination by Physics Group cons
 
 ## Description
 
-**Pigeons!** is a 2D projectile-shooting game where you hurl stones at flying birds across a nighttime cityscape. It leverages Pygame’s rendering and audio capabilities to deliver sprite animations, background music, and sound effects ([Wikipedia][5]). The physics engine models realistic gravity­influenced trajectories, and each hit awards points and extra ammo ([GitHub][6]).
+**Pigeons!** is a 2D projectile-shooting game where you hurl stones at flying birds across a nighttime cityscape. It leverages Pygame’s rendering and audio capabilities to deliver sprite animations, background music, and sound effects ([Wikipedia][5]). The physics engine models realistic gravity­influenced trajectories, and each hit awards points and extra ammo.
 
 ## Features
 
-* **Physics-based projectile motion** with adjustable angle and velocity ([GitHub][6]).
-* **Animated sprites** for birds and the zombieboy character, using frame-by-frame animations ([GitHub][7]).
-* **Dynamic leaderboard** persisted in JSON, showing top 5 high scores with timestamps ([Wikipedia][2]).
-* **Soundtrack and SFX**: continuous background music plus throw, explosion, selection, and high-score sounds ([GitHub][1]).
+* **Physics-based projectile motion** with adjustable angle and velocity.
+* **Animated sprites** for birds and the zombieboy character, using frame-by-frame animations.
+* **Dynamic leaderboard** persisted in JSON, showing top 5 high scores with timestamps.
+* **Soundtrack and SFX**: continuous background music plus throw, explosion, selection, and high-score sounds.
 
 ## Installation
 
