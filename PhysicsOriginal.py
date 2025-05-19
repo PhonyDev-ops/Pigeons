@@ -519,7 +519,7 @@ while running:
     # Update the info display to get the current highest score
     angle_text = f"Angle: {angle}°  Velocity: {velocity}  Score: "
     score_text = f"{score}"
-    high_score_text = f"  Stones: {stone_count}  High Score: {get_highest_score()}"
+    high_score_text = f"Stones: {stone_count}  High Score: {get_highest_score()}"
     
     # Render each part with its own color
     angle_shadow = font.render(angle_text, True, (0, 0, 0))
