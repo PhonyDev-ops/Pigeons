@@ -2,6 +2,9 @@ import pygame
 import math
 import random
 import time
+import json
+import os
+from datetime import datetime
 
 pygame.init()
 pygame.mixer.init()
@@ -11,6 +14,7 @@ pygame.mixer.music.play(-1)
 explode_sound = pygame.mixer.Sound('music/explode1.mp3')
 throw_sound = pygame.mixer.Sound('music/throw1.wav')
 select_sound = pygame.mixer.Sound('music/select1.wav')
+high_score_sound = pygame.mixer.Sound('music/highscore.wav')
 
 WIDTH, HEIGHT = 1280, 720
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -43,6 +47,69 @@ birds = []
 score = 0
 stone_count = 20
 stone_img = pygame.transform.scale(pygame.image.load('assets/stone.png').convert_alpha(), (24, 24))
+
+def load_leaderboard():
+    try:
+        if os.path.exists('leaderboard.json'):
+            with open('leaderboard.json', 'r') as f:
+                return json.load(f)
+    except:
+        pass
+    return []
+
+def save_leaderboard(leaderboard):
+    try:
+        with open('leaderboard.json', 'w') as f:
+            json.dump(leaderboard, f)
+    except:
+        pass
+
+def get_highest_score():
+    leaderboard = load_leaderboard()
+    if leaderboard:
+        return leaderboard[0]['score']  # Leaderboard is already sorted by score
+    return 0
+
+def add_to_leaderboard(name, score):
+    leaderboard = load_leaderboard()
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+    leaderboard.append({
+        'name': name,
+        'score': score,
+        'date': current_time
+    })
+    leaderboard.sort(key=lambda x: x['score'], reverse=True)
+    leaderboard = leaderboard[:5]  # Keep only top 5 scores
+    save_leaderboard(leaderboard)
+    return leaderboard
+
+def get_name_input(screen, font):
+    name = ""
+    input_active = True
+    while input_active:
+        screen.fill((0, 0, 0))
+        prompt = font.render("Enter your name:", True, (255, 255, 255))
+        name_text = font.render(name + "|", True, (255, 255, 255))
+        continue_text = font.render("Press ENTER to continue", True, (255, 255, 255))
+        
+        screen.blit(prompt, (WIDTH//2 - prompt.get_width()//2, HEIGHT//2 - 50))
+        screen.blit(name_text, (WIDTH//2 - name_text.get_width()//2, HEIGHT//2))
+        screen.blit(continue_text, (WIDTH//2 - continue_text.get_width()//2, HEIGHT//2 + 50))
+        
+        pygame.display.flip()
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN and name:
+                    input_active = False
+                elif event.key == pygame.K_BACKSPACE:
+                    name = name[:-1]
+                elif len(name) < 10 and event.unicode.isalnum():
+                    name += event.unicode
+    return name
 
 class Bird:
     def __init__(self):
@@ -89,6 +156,66 @@ def check_collision(stone, bird):
     dy = stone.y - (bird.y + 20)
     return math.hypot(dx, dy) < 28
 
+class LeaderboardScreen:
+    def __init__(self, screen, width, height):
+        self.screen = screen
+        self.width = width
+        self.height = height
+        self.title_font = pygame.font.SysFont('VCR OSD Mono', 72)
+        self.score_font = pygame.font.SysFont('VCR OSD Mono', 36)
+        self.date_font = pygame.font.SysFont('VCR OSD Mono', 24)
+        self.continue_font = pygame.font.SysFont('VCR OSD Mono', 36)
+    
+    def draw(self, leaderboard):
+        self.screen.fill((0, 0, 0))
+        
+        # Draw title
+        title = self.title_font.render("Leaderboard", True, (255, 255, 255))
+        self.screen.blit(title, (self.width//2 - title.get_width()//2, 50))
+        
+        # Draw column headers
+        headers = ["Rank", "Name", "Score", "Date"]
+        header_x = [self.width//2 - 250, self.width//2 - 150, self.width//2 + 50, self.width//2 + 200]
+        for i, header in enumerate(headers):
+            header_text = self.score_font.render(header, True, (255, 255, 0))
+            self.screen.blit(header_text, (header_x[i], 120))
+        
+        # Draw scores
+        y = 180
+        for i, entry in enumerate(leaderboard):
+            rank = f"{i+1}."
+            name = entry['name']
+            score = str(entry['score'])
+            date = entry.get('date', 'N/A')
+            
+            rank_text = self.score_font.render(rank, True, (255, 255, 0))
+            name_text = self.score_font.render(name, True, (255, 255, 255))
+            score_text = self.score_font.render(score, True, (255, 255, 255))
+            date_text = self.date_font.render(date, True, (200, 200, 200))
+            
+            self.screen.blit(rank_text, (header_x[0], y))
+            self.screen.blit(name_text, (header_x[1], y))
+            self.screen.blit(score_text, (header_x[2], y))
+            self.screen.blit(date_text, (header_x[3], y))
+            y += 60
+        
+        # Draw continue text
+        continue_text = self.continue_font.render("Press SPACE to continue", True, (255, 255, 255))
+        self.screen.blit(continue_text, (self.width//2 - continue_text.get_width()//2, self.height - 100))
+        
+        pygame.display.flip()
+    
+    def run(self, leaderboard):
+        self.draw(leaderboard)
+        waiting = True
+        while waiting:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    exit()
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                    waiting = False
+
 class Menu:
     def __init__(self, screen, sky, width, height, select_sound=None):
         self.screen = screen
@@ -98,7 +225,7 @@ class Menu:
         self.select_sound = select_sound
         self.title_font = pygame.font.SysFont('VCR OSD Mono', 72)
         self.button_font = pygame.font.SysFont('VCR OSD Mono', 48)
-        self.options = ['Start', 'Quit']
+        self.options = ['Start', 'Leaderboard', 'Quit']
         self.selected_idx = 0
     def draw(self):
         self.screen.blit(self.sky, (0, 0))
@@ -136,11 +263,14 @@ class Menu:
                         if self.selected_idx == 0:
                             return 'start'
                         elif self.selected_idx == 1:
+                            leaderboard_screen = LeaderboardScreen(self.screen, self.width, self.height)
+                            leaderboard_screen.run(load_leaderboard())
+                        elif self.selected_idx == 2:
                             pygame.quit()
                             exit()
 
 def reset_game_variables():
-    global angle, velocity, stones, birds, score, stone_count, zombieboy_frame_index, zombieboy_animating, zombieboy_anim_timer
+    global angle, velocity, stones, birds, score, stone_count, zombieboy_frame_index, zombieboy_animating, zombieboy_anim_timer, high_score_achieved
     angle = 45
     velocity = 50
     stones = []
@@ -150,12 +280,14 @@ def reset_game_variables():
     zombieboy_frame_index = 0
     zombieboy_animating = False
     zombieboy_anim_timer = 0
+    high_score_achieved = False  # Reset the high score achievement flag
 
 menu = Menu(screen, SKY, WIDTH, HEIGHT, select_sound)
 menu_result = menu.run()
 reset_game_variables()
 running = menu_result == 'start'
 bird_spawn_timer = 0
+high_score_achieved = False  # Initialize the high score achievement flag
 
 while running:
     screen.blit(SKY, (0, 0))
@@ -201,6 +333,10 @@ while running:
                 birds.remove(bird)
                 stones.remove(stone)
                 score += 100
+                # Check if this score exceeds the current highest score and sound hasn't played yet
+                if score > get_highest_score() and not high_score_achieved:
+                    high_score_sound.play()
+                    high_score_achieved = True  # Mark that we've played the sound
                 stone_count += 1
                 break
     if zombieboy_animating:
@@ -236,24 +372,77 @@ while running:
             pygame.draw.circle(tracer_circle, tracer_color, (6, 6), 6)
             tracer_surface.blit(tracer_circle, (point[0] - 6, point[1] - 6))
     screen.blit(tracer_surface, (0, 0))
-    info_text = f"Angle: {angle}°  Velocity: {velocity}  Score: {score}  Stones: {stone_count}"
-    shadow = font.render(info_text, True, (0, 0, 0))
-    screen.blit(shadow, (14, 14))
-    info = font.render(info_text, True, (255, 255, 255))
-    screen.blit(info, (10, 10))
     if stone_count == 0 and len(stones) == 0 and not any([stone for stone in stones]):
-        game_over_text = font.render(f"Game Over! Final Score: {score}", True, (255, 0, 0))
-        shadow = font.render(f"Game Over! Final Score: {score}", True, (0, 0, 0))
-        x = WIDTH // 2 - game_over_text.get_width() // 2
-        y = HEIGHT // 2
-        screen.blit(shadow, (x + 4, y + 4))
-        screen.blit(game_over_text, (x, y))
+        leaderboard = load_leaderboard()
+        if score > 0 and (len(leaderboard) < 5 or score > leaderboard[-1]['score']):
+            name = get_name_input(screen, font)
+            leaderboard = add_to_leaderboard(name, score)
+        
+        # Create a semi-transparent overlay
+        overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 128))
+        screen.blit(overlay, (0, 0))
+        
+        # Game over text
+        game_over_font = pygame.font.SysFont('VCR OSD Mono', 72)
+        score_font = pygame.font.SysFont('VCR OSD Mono', 48)
+        
+        game_over_text = game_over_font.render("Game Over!", True, (255, 0, 0))
+        final_score_text = score_font.render(f"Final Score: {score}", True, (255, 255, 255))
+        continue_text = score_font.render("Press SPACE to continue", True, (255, 255, 255))
+        
+        # Center all text
+        x = WIDTH // 2
+        y = HEIGHT // 2 - 100
+        
+        screen.blit(game_over_text, (x - game_over_text.get_width() // 2, y))
+        screen.blit(final_score_text, (x - final_score_text.get_width() // 2, y + 80))
+        screen.blit(continue_text, (x - continue_text.get_width() // 2, y + 200))
+        
         pygame.display.flip()
-        pygame.time.wait(3000)
+        
+        # Wait for space key
+        waiting = True
+        while waiting:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    exit()
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                    waiting = False
+        
+        # Show leaderboard
+        leaderboard_screen = LeaderboardScreen(screen, WIDTH, HEIGHT)
+        leaderboard_screen.run(leaderboard)
+        
         reset_game_variables()
         menu.selected_idx = 0
         menu_result = menu.run()
         running = menu_result == 'start'
         continue
+
+    # Update the info display to get the current highest score
+    angle_text = f"Angle: {angle}°  Velocity: {velocity}  Score: "
+    score_text = f"{score}"
+    high_score_text = f"  Stones: {stone_count}  High Score: {get_highest_score()}"
+    
+    # Render each part with its own color
+    angle_shadow = font.render(angle_text, True, (0, 0, 0))
+    score_shadow = font.render(score_text, True, (0, 0, 0))
+    high_score_shadow = font.render(high_score_text, True, (0, 0, 0))
+    
+    angle_info = font.render(angle_text, True, (255, 255, 255))
+    score_info = font.render(score_text, True, (0, 255, 0))  # Green color
+    high_score_info = font.render(high_score_text, True, (255, 255, 0))  # Yellow color
+    
+    # Draw shadows
+    screen.blit(angle_shadow, (14, 14))
+    screen.blit(score_shadow, (14 + angle_shadow.get_width(), 14))
+    screen.blit(high_score_shadow, (14 + angle_shadow.get_width() + score_shadow.get_width(), 14))
+    
+    # Draw colored text
+    screen.blit(angle_info, (10, 10))
+    screen.blit(score_info, (10 + angle_info.get_width(), 10))
+    screen.blit(high_score_info, (10 + angle_info.get_width() + score_info.get_width(), 10))
     pygame.display.flip()
 pygame.quit()
