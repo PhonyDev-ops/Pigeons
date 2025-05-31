@@ -6,6 +6,8 @@ import json
 import os
 from datetime import datetime
 
+//test test test
+
 pygame.init()
 pygame.mixer.init()
 pygame.mixer.music.load('music/bgm1.mp3')
